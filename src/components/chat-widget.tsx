@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { MessageCircleIcon, RotateCcwIcon, SendIcon, XIcon } from "lucide-react"
+import { Loader, MessageCircleIcon, RotateCcwIcon, SendIcon, XIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Bubble, BubbleContent } from "@/components/ui/bubble"
@@ -10,8 +10,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
-import { Input } from "@/components/ui/input"
 import { Message, MessageContent } from "@/components/ui/message"
+import { Textarea } from "@/components/ui/textarea"
 import {
   MessageScroller,
   MessageScrollerButton,
@@ -26,6 +26,60 @@ type ChatMessage = {
   role: "user" | "assistant"
   text: string
   suggestions?: string[]
+}
+
+const MAX_MESSAGE_LENGTH = 500
+
+const LINK_REGEX =
+  /(https?:\/\/[^\s<>"')]+)|(www\.[^\s<>"')]+)|([\w.+-]+@[\w-]+(?:\.[\w-]+)+)|([a-zA-Z0-9-]+\.[a-zA-Z]{2,24}\/[^\s<>"')]*)/g
+
+const TRAILING_PUNCTUATION = /[.,;:!?)\]}'"]+$/
+
+function linkifyText(text: string): React.ReactNode {
+  const nodes: React.ReactNode[] = []
+  let lastIndex = 0
+
+  for (const match of text.matchAll(LINK_REGEX)) {
+    const [raw, httpUrl, , email] = match
+    const start = match.index ?? 0
+
+    if (start > lastIndex) {
+      nodes.push(text.slice(lastIndex, start))
+    }
+
+    if (email) {
+      nodes.push(
+        <a key={start} href={`mailto:${email}`} className="underline underline-offset-2">
+          {email}
+        </a>
+      )
+    } else {
+      const trailing = raw.match(TRAILING_PUNCTUATION)?.[0] ?? ""
+      const clean = trailing ? raw.slice(0, -trailing.length) : raw
+      const href = httpUrl ? clean : `https://${clean}`
+
+      nodes.push(
+        <a
+          key={start}
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline underline-offset-2"
+        >
+          {clean}
+        </a>
+      )
+      if (trailing) nodes.push(trailing)
+    }
+
+    lastIndex = start + raw.length
+  }
+
+  if (lastIndex < text.length) {
+    nodes.push(text.slice(lastIndex))
+  }
+
+  return nodes
 }
 
 const initialMessages: ChatMessage[] = [
@@ -45,12 +99,12 @@ export function ChatWidget({
   const [open, setOpen] = React.useState(false)
   const [messages, setMessages] = React.useState<ChatMessage[]>(initialMessages)
   const [draft, setDraft] = React.useState("")
-  const [pending, setPending] = React.useState(false)
+  const [loading, setLoading] = React.useState(false)
 
   async function sendMessage(text: string) {
     setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "user", text }])
     setDraft("")
-    setPending(true)
+    setLoading(true)
 
     try {
       const response = await fetch(apiEndpoint, {
@@ -80,8 +134,14 @@ export function ChatWidget({
         },
       ])
     } finally {
-      setPending(false)
+      setLoading(false)
     }
+  }
+
+  function handleSend() {
+    const text = draft.trim()
+    if (!text || loading) return
+    void sendMessage(text)
   }
 
   return (
@@ -122,7 +182,7 @@ export function ChatWidget({
                     const showSuggestions =
                       message.role === "assistant" &&
                       index === messages.length - 1 &&
-                      !pending &&
+                      !loading &&
                       (message.suggestions?.length ?? 0) > 0
 
                     return (
@@ -133,22 +193,27 @@ export function ChatWidget({
                               variant={message.role === "user" ? "default" : "muted"}
                               align={message.role === "user" ? "end" : "start"}
                             >
-                              <BubbleContent>{message.text}</BubbleContent>
+                              <BubbleContent>{linkifyText(message.text)}</BubbleContent>
                             </Bubble>
                             {showSuggestions && (
-                              <div className="flex flex-wrap gap-2 px-3">
-                                {message.suggestions?.map((suggestion) => (
-                                  <Button
-                                    key={suggestion}
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    className="rounded-full"
-                                    onClick={() => setDraft(suggestion)}
-                                  >
-                                    {suggestion}
-                                  </Button>
-                                ))}
+                              <div className="flex flex-col gap-1.5 px-2">
+                                <span className="text-xs font-medium text-muted-foreground">
+                                  Suggestions
+                                </span>
+                                <div className="flex flex-wrap gap-2">
+                                  {message.suggestions?.map((suggestion) => (
+                                    <Button
+                                      key={suggestion}
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-auto whitespace-normal rounded-full py-1.5 text-left"
+                                      onClick={() => setDraft(suggestion)}
+                                    >
+                                      {suggestion}
+                                    </Button>
+                                  ))}
+                                </div>
                               </div>
                             )}
                           </MessageContent>
@@ -156,6 +221,19 @@ export function ChatWidget({
                       </MessageScrollerItem>
                     )
                   })}
+                  {loading && (
+                    <MessageScrollerItem messageId="loading">
+                      <Message align="start">
+                        <MessageContent>
+                          <Bubble variant="muted" align="start">
+                            <BubbleContent>
+                              <Loader className="size-4 animate-spin text-muted-foreground" />
+                            </BubbleContent>
+                          </Bubble>
+                        </MessageContent>
+                      </Message>
+                    </MessageScrollerItem>
+                  )}
                 </MessageScrollerContent>
               </MessageScrollerViewport>
               <MessageScrollerButton />
@@ -164,25 +242,36 @@ export function ChatWidget({
         </div>
 
         <form
-          className="flex items-center gap-2 border-t border-border px-3 py-3"
+          className="flex flex-col gap-1 border-t border-border px-3 py-3"
           onSubmit={(event) => {
             event.preventDefault()
-            const text = draft.trim()
-            if (!text || pending) return
-            void sendMessage(text)
+            handleSend()
           }}
         >
-          <Input
-            placeholder="Ask a question…"
-            className="flex-1"
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            disabled={pending}
-          />
-          <Button type="submit" size="icon" disabled={pending}>
-            <SendIcon />
-            <span className="sr-only">Send</span>
-          </Button>
+          <div className="flex items-end gap-2">
+            <Textarea
+              placeholder="Ask a question…"
+              className="max-h-32 min-h-9 flex-1 resize-none py-2"
+              rows={1}
+              maxLength={MAX_MESSAGE_LENGTH}
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault()
+                  handleSend()
+                }
+              }}
+              disabled={loading}
+            />
+            <Button type="submit" size="icon" disabled={loading || !draft.trim()}>
+              <SendIcon />
+              <span className="sr-only">Send</span>
+            </Button>
+          </div>
+          <span className="self-end text-xs text-muted-foreground">
+            {draft.length}/{MAX_MESSAGE_LENGTH}
+          </span>
         </form>
       </CollapsibleContent>
 
