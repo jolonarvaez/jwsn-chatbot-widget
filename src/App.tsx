@@ -1,5 +1,7 @@
+import { ChatWidget } from "@/components/chat-widget"
+
 function App() {
-  return null
+  return <ChatWidget />
 }
 
 export default App
