@@ -25,6 +25,7 @@ type ChatMessage = {
   id: string
   role: "user" | "assistant"
   text: string
+  suggestions?: string[]
 }
 
 const initialMessages: ChatMessage[] = [
@@ -32,18 +33,56 @@ const initialMessages: ChatMessage[] = [
     id: "welcome",
     role: "assistant",
     text: "Hi, I'm Jolo's assistant. Ask me about his work experience and projects, or try a suggestion below.",
+    suggestions: [],
   },
 ]
 
-const suggestions = [
-  "What's your most recent role?",
-  "What projects have you shipped?",
-]
-
-export function ChatWidget() {
+export function ChatWidget({
+  apiEndpoint = "/api/chat",
+}: {
+  apiEndpoint?: string
+} = {}) {
   const [open, setOpen] = React.useState(false)
   const [messages, setMessages] = React.useState<ChatMessage[]>(initialMessages)
   const [draft, setDraft] = React.useState("")
+  const [pending, setPending] = React.useState(false)
+
+  async function sendMessage(text: string) {
+    setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "user", text }])
+    setDraft("")
+    setPending(true)
+
+    try {
+      const response = await fetch(apiEndpoint, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ message: text }),
+      })
+      if (!response.ok) throw new Error(`Request failed: ${response.status}`)
+
+      const data = (await response.json()) as { reply: string; suggestions?: string[] }
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          text: data.reply,
+          suggestions: data.suggestions,
+        },
+      ])
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          text: "Sorry, something went wrong. Please try again.",
+        },
+      ])
+    } finally {
+      setPending(false)
+    }
+  }
 
   return (
     <Collapsible
@@ -79,45 +118,49 @@ export function ChatWidget() {
             <MessageScroller className="size-full">
               <MessageScrollerViewport>
                 <MessageScrollerContent className="gap-2 px-2.5 py-2.5">
-                  {messages.map((message) => (
-                    <MessageScrollerItem key={message.id} messageId={message.id}>
-                      <Message align={message.role === "user" ? "end" : "start"}>
-                        <MessageContent>
-                          <Bubble
-                            variant={message.role === "user" ? "default" : "muted"}
-                            align={message.role === "user" ? "end" : "start"}
-                          >
-                            <BubbleContent>{message.text}</BubbleContent>
-                          </Bubble>
-                        </MessageContent>
-                      </Message>
-                    </MessageScrollerItem>
-                  ))}
+                  {messages.map((message, index) => {
+                    const showSuggestions =
+                      message.role === "assistant" &&
+                      index === messages.length - 1 &&
+                      !pending &&
+                      (message.suggestions?.length ?? 0) > 0
+
+                    return (
+                      <MessageScrollerItem key={message.id} messageId={message.id}>
+                        <Message align={message.role === "user" ? "end" : "start"}>
+                          <MessageContent>
+                            <Bubble
+                              variant={message.role === "user" ? "default" : "muted"}
+                              align={message.role === "user" ? "end" : "start"}
+                            >
+                              <BubbleContent>{message.text}</BubbleContent>
+                            </Bubble>
+                            {showSuggestions && (
+                              <div className="flex flex-wrap gap-2 px-3">
+                                {message.suggestions?.map((suggestion) => (
+                                  <Button
+                                    key={suggestion}
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="rounded-full"
+                                    onClick={() => setDraft(suggestion)}
+                                  >
+                                    {suggestion}
+                                  </Button>
+                                ))}
+                              </div>
+                            )}
+                          </MessageContent>
+                        </Message>
+                      </MessageScrollerItem>
+                    )
+                  })}
                 </MessageScrollerContent>
               </MessageScrollerViewport>
               <MessageScrollerButton />
             </MessageScroller>
           </MessageScrollerProvider>
-
-          {/* <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col justify-end gap-1.5 bg-gradient-to-t from-card via-card/90 to-transparent px-4 pt-8 pb-3">
-            <span className="pointer-events-auto text-xs font-medium text-muted-foreground">
-              Suggestions
-            </span>
-            <div className="pointer-events-auto flex flex-wrap gap-2">
-              {suggestions.map((suggestion) => (
-                <Button
-                  key={suggestion}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0 rounded-full bg-card"
-                  onClick={() => setDraft(suggestion)}
-                >
-                  {suggestion}
-                </Button>
-              ))}
-            </div>
-          </div> */}
         </div>
 
         <form
@@ -125,12 +168,8 @@ export function ChatWidget() {
           onSubmit={(event) => {
             event.preventDefault()
             const text = draft.trim()
-            if (!text) return
-            setMessages((prev) => [
-              ...prev,
-              { id: crypto.randomUUID(), role: "user", text },
-            ])
-            setDraft("")
+            if (!text || pending) return
+            void sendMessage(text)
           }}
         >
           <Input
@@ -138,8 +177,9 @@ export function ChatWidget() {
             className="flex-1"
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
+            disabled={pending}
           />
-          <Button type="submit" size="icon">
+          <Button type="submit" size="icon" disabled={pending}>
             <SendIcon />
             <span className="sr-only">Send</span>
           </Button>
