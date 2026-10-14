@@ -1,7 +1,13 @@
 "use client"
 
 import * as React from "react"
-import { Loader, MessageCircleIcon, RotateCcwIcon, SendIcon, XIcon } from "lucide-react"
+import {
+  Loader,
+  MessageCircleIcon,
+  RotateCcwIcon,
+  SendIcon,
+  XIcon,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Bubble, BubbleContent } from "@/components/ui/bubble"
@@ -49,9 +55,13 @@ function linkifyText(text: string): React.ReactNode {
 
     if (email) {
       nodes.push(
-        <a key={start} href={`mailto:${email}`} className="underline underline-offset-2">
+        <a
+          key={start}
+          href={`mailto:${email}`}
+          className="underline underline-offset-2"
+        >
           {email}
-        </a>
+        </a>,
       )
     } else {
       const trailing = raw.match(TRAILING_PUNCTUATION)?.[0] ?? ""
@@ -67,7 +77,7 @@ function linkifyText(text: string): React.ReactNode {
           className="underline underline-offset-2"
         >
           {clean}
-        </a>
+        </a>,
       )
       if (trailing) nodes.push(trailing)
     }
@@ -102,7 +112,10 @@ export function ChatWidget({
   const [loading, setLoading] = React.useState(false)
 
   async function sendMessage(text: string) {
-    setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "user", text }])
+    setMessages((prev) => [
+      ...prev,
+      { id: crypto.randomUUID(), role: "user", text },
+    ])
     setDraft("")
     setLoading(true)
 
@@ -114,7 +127,10 @@ export function ChatWidget({
       })
       if (!response.ok) throw new Error(`Request failed: ${response.status}`)
 
-      const data = (await response.json()) as { reply: string; suggestions?: string[] }
+      const data = (await response.json()) as {
+        reply: string
+        suggestions?: string[]
+      }
       setMessages((prev) => [
         ...prev,
         {
@@ -166,7 +182,9 @@ export function ChatWidget({
               <RotateCcwIcon />
               <span className="sr-only">Reset chat</span>
             </Button>
-            <CollapsibleTrigger render={<Button variant="ghost" size="icon-sm" />}>
+            <CollapsibleTrigger
+              render={<Button variant="ghost" size="icon-sm" />}
+            >
               <XIcon />
               <span className="sr-only">Close chat</span>
             </CollapsibleTrigger>
@@ -186,14 +204,23 @@ export function ChatWidget({
                       (message.suggestions?.length ?? 0) > 0
 
                     return (
-                      <MessageScrollerItem key={message.id} messageId={message.id}>
-                        <Message align={message.role === "user" ? "end" : "start"}>
+                      <MessageScrollerItem
+                        key={message.id}
+                        messageId={message.id}
+                      >
+                        <Message
+                          align={message.role === "user" ? "end" : "start"}
+                        >
                           <MessageContent>
                             <Bubble
-                              variant={message.role === "user" ? "default" : "muted"}
+                              variant={
+                                message.role === "user" ? "default" : "muted"
+                              }
                               align={message.role === "user" ? "end" : "start"}
                             >
-                              <BubbleContent>{linkifyText(message.text)}</BubbleContent>
+                              <BubbleContent>
+                                {linkifyText(message.text)}
+                              </BubbleContent>
                             </Bubble>
                             {showSuggestions && (
                               <div className="flex flex-col gap-1.5 px-2">
@@ -264,7 +291,11 @@ export function ChatWidget({
               }}
               disabled={loading}
             />
-            <Button type="submit" size="icon" disabled={loading || !draft.trim()}>
+            <Button
+              type="submit"
+              size="icon"
+              disabled={loading || !draft.trim()}
+            >
               <SendIcon />
               <span className="sr-only">Send</span>
             </Button>
@@ -276,7 +307,9 @@ export function ChatWidget({
       </CollapsibleContent>
 
       <CollapsibleTrigger
-        render={<Button size="icon-lg" className="size-12 rounded-full shadow-lg" />}
+        render={
+          <Button size="icon-lg" className="size-12 rounded-full shadow-lg" />
+        }
       >
         <MessageCircleIcon />
         <span className="sr-only">{open ? "Close chat" : "Open chat"}</span>

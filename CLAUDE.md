@@ -26,9 +26,10 @@ Current state: scaffold only. `src/App.tsx` is an empty placeholder — no RAG p
 
 **Styling**: Tailwind CSS v4 via the `@tailwindcss/vite` plugin (no `tailwind.config.js` — v4 is CSS-first, imported in `src/index.css`). shadcn/ui is initialized (`components.json`, style `base-nova`, base `base-ui` not Radix) with path alias `@/* → src/*`.
 
-**Path alias note**: the `@/*` alias must be declared in the *root* `tsconfig.json`'s own `compilerOptions.paths` (not only in `tsconfig.app.json`, which it references) — the shadcn CLI reads the root config directly and does not follow `references` to find it. It also needs the matching `resolve.alias` in `vite.config.ts` for Vite itself to resolve it at runtime/build time. Both are currently set up correctly; if `npx shadcn@latest info --json` ever shows `resolvedPaths` pointing at a literal `@/...` directory instead of `src/...`, that mapping has regressed.
+**Path alias note**: the `@/*` alias must be declared in the _root_ `tsconfig.json`'s own `compilerOptions.paths` (not only in `tsconfig.app.json`, which it references) — the shadcn CLI reads the root config directly and does not follow `references` to find it. It also needs the matching `resolve.alias` in `vite.config.ts` for Vite itself to resolve it at runtime/build time. Both are currently set up correctly; if `npx shadcn@latest info --json` ever shows `resolvedPaths` pointing at a literal `@/...` directory instead of `src/...`, that mapping has regressed.
 
 **Dependencies installed but not yet wired into actual functionality:**
+
 - `@google/genai` — Gemini client; no API calls implemented yet
 - RAG/retrieval over the profile `.md` file — not implemented yet (no chunking/embedding/retrieval code exists)
 - `storybook` — no `.storybook/` config yet

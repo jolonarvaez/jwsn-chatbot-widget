@@ -41,7 +41,8 @@ const RESPONSE_SCHEMA: Schema = {
     suggestions: {
       type: Type.ARRAY,
       items: { type: Type.STRING },
-      description: "One or two short follow-up questions the visitor could ask next.",
+      description:
+        "One or two short follow-up questions the visitor could ask next.",
     },
   },
   required: ["reply", "suggestions"],
@@ -91,13 +92,15 @@ export function createChatHandler({
       const parsed = JSON.parse(result.text ?? "{}") as Partial<ChatReply>
       return Response.json({
         reply: parsed.reply ?? "",
-        suggestions: Array.isArray(parsed.suggestions) ? parsed.suggestions : [],
+        suggestions: Array.isArray(parsed.suggestions)
+          ? parsed.suggestions
+          : [],
       } satisfies ChatReply)
     } catch (error) {
       console.error("Gemini request failed", error)
       return Response.json(
         { error: "Failed to generate a response" },
-        { status: 502 }
+        { status: 502 },
       )
     }
   }
