@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import {
   Loader,
   MessageCircleIcon,
@@ -11,11 +12,7 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { Bubble, BubbleContent } from "@/components/ui/bubble"
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
+import { Collapsible, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Message, MessageContent } from "@/components/ui/message"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -110,6 +107,8 @@ export function ChatWidget({
   const [messages, setMessages] = React.useState<ChatMessage[]>(initialMessages)
   const [draft, setDraft] = React.useState("")
   const [loading, setLoading] = React.useState(false)
+  const chatWindowId = React.useId()
+  const prefersReducedMotion = useReducedMotion()
 
   async function sendMessage(text: string) {
     setMessages((prev) => [
@@ -166,147 +165,201 @@ export function ChatWidget({
       onOpenChange={setOpen}
       className="fixed right-4 bottom-4 z-50 flex flex-col items-end gap-3"
     >
-      <CollapsibleContent className="flex h-[32rem] w-[22rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-lg">
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <span className="text-sm font-medium text-foreground">Chat</span>
-          <div className="flex items-center gap-1">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => {
-                setMessages(initialMessages)
-                setDraft("")
-              }}
-            >
-              <RotateCcwIcon />
-              <span className="sr-only">Reset chat</span>
-            </Button>
-            <CollapsibleTrigger
-              render={<Button variant="ghost" size="icon-sm" />}
-            >
-              <XIcon />
-              <span className="sr-only">Close chat</span>
-            </CollapsibleTrigger>
-          </div>
-        </div>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            id={chatWindowId}
+            role="region"
+            aria-label="Chat"
+            aria-hidden={!open}
+            inert={!open}
+            initial={{ opacity: 0, scale: 0.96, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 8 }}
 
-        <div className="relative min-h-0 flex-1">
-          <MessageScrollerProvider autoScroll>
-            <MessageScroller className="size-full">
-              <MessageScrollerViewport>
-                <MessageScrollerContent className="gap-2 px-2.5 py-2.5">
-                  {messages.map((message, index) => {
-                    const showSuggestions =
-                      message.role === "assistant" &&
-                      index === messages.length - 1 &&
-                      !loading &&
-                      (message.suggestions?.length ?? 0) > 0
+            transition={
+              prefersReducedMotion
+                ? { duration: 0 }
+                : { type: "spring", stiffness: 420, damping: 32 }
+            }
+            className="origin-bottom-right flex h-[32rem] w-[22rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-lg"
+          >
+            <div className="flex items-center justify-between border-b border-border px-4 py-3">
+              <span className="text-sm font-medium text-foreground">Chat</span>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => {
+                    setMessages(initialMessages)
+                    setDraft("")
+                  }}
+                >
+                  <RotateCcwIcon />
+                  <span className="sr-only">Reset chat</span>
+                </Button>
+                <CollapsibleTrigger
+                  aria-controls={chatWindowId}
+                  render={<Button variant="ghost" size="icon-sm" />}
+                >
+                  <XIcon />
+                  <span className="sr-only">Close chat</span>
+                </CollapsibleTrigger>
+              </div>
+            </div>
 
-                    return (
-                      <MessageScrollerItem
-                        key={message.id}
-                        messageId={message.id}
-                      >
-                        <Message
-                          align={message.role === "user" ? "end" : "start"}
-                        >
-                          <MessageContent>
-                            <Bubble
-                              variant={
-                                message.role === "user" ? "default" : "muted"
+            <div className="relative min-h-0 flex-1">
+              <MessageScrollerProvider autoScroll>
+                <MessageScroller className="size-full">
+                  <MessageScrollerViewport>
+                    <MessageScrollerContent className="gap-2 px-2.5 py-2.5">
+                      {messages.map((message, index) => {
+                        const showSuggestions =
+                          message.role === "assistant" &&
+                          index === messages.length - 1 &&
+                          !loading &&
+                          (message.suggestions?.length ?? 0) > 0
+
+                        return (
+                          <MessageScrollerItem
+                            key={message.id}
+                            messageId={message.id}
+                          >
+                            <motion.div
+                              initial={{
+                                opacity: 0,
+                                x: message.role === "user" ? 8 : -8,
+                                y: 4,
+                              }}
+                              animate={{ opacity: 1, x: 0, y: 0 }}
+                              transition={
+                                prefersReducedMotion
+                                  ? { duration: 0 }
+                                  : {
+                                      type: "spring",
+                                      stiffness: 500,
+                                      damping: 35,
+                                    }
                               }
-                              align={message.role === "user" ? "end" : "start"}
+                              className="w-full"
                             >
-                              <BubbleContent>
-                                {linkifyText(message.text)}
-                              </BubbleContent>
-                            </Bubble>
-                            {showSuggestions && (
-                              <div className="flex flex-col gap-1.5 px-2">
-                                <span className="text-xs font-medium text-muted-foreground">
-                                  Suggestions
-                                </span>
-                                <div className="flex flex-wrap gap-2">
-                                  {message.suggestions?.map((suggestion) => (
-                                    <Button
-                                      key={suggestion}
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-auto whitespace-normal rounded-full py-1.5 text-left"
-                                      onClick={() => setDraft(suggestion)}
-                                    >
-                                      {suggestion}
-                                    </Button>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </MessageContent>
-                        </Message>
-                      </MessageScrollerItem>
-                    )
-                  })}
-                  {loading && (
-                    <MessageScrollerItem messageId="loading">
-                      <Message align="start">
-                        <MessageContent>
-                          <Bubble variant="muted" align="start">
-                            <BubbleContent>
-                              <Loader className="size-4 animate-spin text-muted-foreground" />
-                            </BubbleContent>
-                          </Bubble>
-                        </MessageContent>
-                      </Message>
-                    </MessageScrollerItem>
-                  )}
-                </MessageScrollerContent>
-              </MessageScrollerViewport>
-              <MessageScrollerButton />
-            </MessageScroller>
-          </MessageScrollerProvider>
-        </div>
+                              <Message
+                                align={
+                                  message.role === "user" ? "end" : "start"
+                                }
+                              >
+                                <MessageContent>
+                                  <Bubble
+                                    variant={
+                                      message.role === "user"
+                                        ? "default"
+                                        : "muted"
+                                    }
+                                    align={
+                                      message.role === "user" ? "end" : "start"
+                                    }
+                                  >
+                                    <BubbleContent>
+                                      {linkifyText(message.text)}
+                                    </BubbleContent>
+                                  </Bubble>
+                                  {showSuggestions && (
+                                    <div className="flex flex-col gap-1.5 px-2">
+                                      <span className="text-xs font-medium text-muted-foreground">
+                                        Suggestions
+                                      </span>
+                                      <div className="flex flex-wrap gap-2">
+                                        {message.suggestions?.map(
+                                          (suggestion) => (
+                                            <Button
+                                              key={suggestion}
+                                              type="button"
+                                              variant="outline"
+                                              size="sm"
+                                              className="h-auto shrink whitespace-normal rounded-lg py-1.5 text-left bg-muted hover:shadow-xs"
+                                              disabled={loading}
+                                              onClick={() =>
+                                                void sendMessage(suggestion)
+                                              }
+                                            >
+                                              {suggestion}
+                                            </Button>
+                                          ),
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                </MessageContent>
+                              </Message>
+                            </motion.div>
+                          </MessageScrollerItem>
+                        )
+                      })}
+                      {loading && (
+                        <MessageScrollerItem messageId="loading">
+                          <Message align="start">
+                            <MessageContent>
+                              <Bubble variant="muted" align="start">
+                                <BubbleContent>
+                                  <Loader className="size-4 animate-spin text-muted-foreground" />
+                                </BubbleContent>
+                              </Bubble>
+                            </MessageContent>
+                          </Message>
+                        </MessageScrollerItem>
+                      )}
+                    </MessageScrollerContent>
+                  </MessageScrollerViewport>
+                  <MessageScrollerButton />
+                </MessageScroller>
+              </MessageScrollerProvider>
+            </div>
 
-        <form
-          className="flex flex-col gap-1 border-t border-border px-3 py-3"
-          onSubmit={(event) => {
-            event.preventDefault()
-            handleSend()
-          }}
-        >
-          <div className="flex items-end gap-2">
-            <Textarea
-              placeholder="Ask a question…"
-              className="max-h-32 min-h-9 flex-1 resize-none py-2"
-              rows={1}
-              maxLength={MAX_MESSAGE_LENGTH}
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey) {
-                  event.preventDefault()
-                  handleSend()
-                }
+            <form
+              className="flex flex-col gap-1 border-t border-border px-3 py-3"
+              onSubmit={(event) => {
+                event.preventDefault()
+                handleSend()
               }}
-              disabled={loading}
-            />
-            <Button
-              type="submit"
-              size="icon"
-              disabled={loading || !draft.trim()}
             >
-              <SendIcon />
-              <span className="sr-only">Send</span>
-            </Button>
-          </div>
-          <span className="self-end text-xs text-muted-foreground">
-            {draft.length}/{MAX_MESSAGE_LENGTH}
-          </span>
-        </form>
-      </CollapsibleContent>
+              <div className="flex gap-1">
+                <Textarea
+                  placeholder="Ask a question…"
+                  className="max-h-32 min-h-9 flex-1 resize-none py-2"
+                  rows={1}
+                  maxLength={MAX_MESSAGE_LENGTH}
+                  value={draft}
+                  onChange={(event) => setDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.shiftKey) {
+                      event.preventDefault()
+                      handleSend()
+                    }
+                  }}
+                  disabled={loading}
+                />
+                <div className="flex flex-col items-end gap-1">
+                  <Button
+                    type="submit"
+                    size="icon"
+                    disabled={loading || !draft.trim()}
+                  >
+                    <SendIcon />
+                    <span className="sr-only">Send</span>
+                  </Button>
+                  <span className="self-end text-xs text-muted-foreground">
+                    {draft.length}/{MAX_MESSAGE_LENGTH}
+                  </span>
+                </div>
+              </div>
+            </form>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <CollapsibleTrigger
+        aria-controls={chatWindowId}
         render={
           <Button size="icon-lg" className="size-12 rounded-full shadow-lg" />
         }

@@ -28,6 +28,21 @@ describe("ChatWidget", () => {
     ).toBeInTheDocument()
   })
 
+  it("keeps the chat window mounted while its closing animation plays", async () => {
+    const user = userEvent.setup()
+    render(<ChatWidget />)
+
+    await openWidget(user)
+    await user.click(screen.getAllByRole("button", { name: /close chat/i })[0])
+
+    expect(screen.getByPlaceholderText(/ask a question/i)).toBeInTheDocument()
+    await waitFor(() => {
+      expect(
+        screen.queryByPlaceholderText(/ask a question/i),
+      ).not.toBeInTheDocument()
+    })
+  })
+
   it("sends a message and renders the assistant's reply with suggestions", async () => {
     const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>
     fetchMock.mockResolvedValue(
@@ -66,6 +81,38 @@ describe("ChatWidget", () => {
     ).toBeInTheDocument()
   })
 
+  it("animates each message bubble as it enters the conversation", async () => {
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ reply: "A reply.", suggestions: [] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    )
+
+    const user = userEvent.setup()
+    render(<ChatWidget apiEndpoint="/api/chat" />)
+    await openWidget(user)
+    await user.type(
+      screen.getByPlaceholderText(/ask a question/i),
+      "A question?",
+    )
+    await user.click(screen.getByRole("button", { name: /send/i }))
+
+    await screen.findByText("A reply.")
+
+    await waitFor(() => {
+      for (const text of [
+        /ask me about his work experience/i,
+        "A question?",
+        "A reply.",
+      ]) {
+        const message = screen.getByText(text).closest('[data-slot="message"]')
+        expect(message?.parentElement?.style.opacity).toBe("1")
+      }
+    })
+  })
+
   it("shows a fallback message when the request fails", async () => {
     const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>
     fetchMock.mockResolvedValue(new Response(null, { status: 500 }))
@@ -82,20 +129,30 @@ describe("ChatWidget", () => {
     })
   })
 
-  it("fills the draft when a suggestion is clicked", async () => {
+  it("sends the suggestion immediately when it is clicked", async () => {
     const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>
-    fetchMock.mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          reply: "He builds things.",
-          suggestions: ["Tell me more?"],
-        }),
-        { status: 200, headers: { "content-type": "application/json" } },
-      ),
-    )
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            reply: "He builds things.",
+            suggestions: ["Tell me more?"],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            reply: "He builds a lot of things.",
+            suggestions: [],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      )
 
     const user = userEvent.setup()
-    render(<ChatWidget />)
+    render(<ChatWidget apiEndpoint="/api/chat" />)
     await openWidget(user)
 
     await user.type(
@@ -109,9 +166,17 @@ describe("ChatWidget", () => {
     })
     await user.click(suggestionButton)
 
-    expect(screen.getByPlaceholderText(/ask a question/i)).toHaveValue(
-      "Tell me more?",
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/chat",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ message: "Tell me more?" }),
+      }),
     )
+    await waitFor(() => {
+      expect(screen.getByText("He builds a lot of things.")).toBeInTheDocument()
+    })
+    expect(screen.getByPlaceholderText(/ask a question/i)).toHaveValue("")
   })
 
   it("resets the conversation when the reset button is clicked", async () => {
